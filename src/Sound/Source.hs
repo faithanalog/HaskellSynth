@@ -31,7 +31,7 @@ sineWave freq t = sin (freq * t * 2 * pi)
 
 sawWave :: Double -> Double -> Double
 sawWave freq t = saw (freq * t)
- where saw x = 2 * (x - fromInteger (floor (0.5 + x)))
+ where saw x = 2 * (x - fromIntegral (floor (0.5 + x) :: Int))
 
 triangleWave :: Double -> Double -> Double
 triangleWave freq t = 2 * abs (sawWave freq t) - 1
