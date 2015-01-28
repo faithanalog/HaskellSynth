@@ -12,21 +12,21 @@ type Instrument = Note -> Source
 
 -- Memoized since it will often be called a whole lot
 noteFreq :: Int -> Double
-noteFreq = (map impl [-127..] !!)
+noteFreq = (map impl [0..] !!)
     where note x = fromIntegral (x :: Int)
-          impl x = 440 * ((2 ** (1 / 12)) ** note x)
+          impl x = 440 * ((2 ** (1 / 12)) ** note (x - 69))
 
 
-synthInstrument :: Synth -> Instrument
-synthInstrument synth (Note n on _)
-    | on = synth (noteFreq n) <> synth (noteFreq n * 2)
-    | otherwise = Source (const 0.0)
+oscInstrument :: Oscillator -> Instrument
+oscInstrument osc (Note n on _)
+    | on = osc (noteFreq n)
+    | otherwise = mempty
 
 -- Attack Decay Sustain Release envelope.
 -- http://en.wikipedia.org/wiki/Synthesizer#ADSR_envelope
 withADSR :: ADSREnvelope -> Instrument -> Instrument
 withADSR (ADSREnvelope atk dcy stn rls) instr nt@(Note _ on time) = Source impl
-    where impl t = clamp (envelope t) * sample (instr nt{noteOn = True}) t
+    where impl ts = zipWith (*) (map (clamp . envelope) ts) (sample (instr nt{noteOn = True}) ts)
           clamp = max 0.0 . min 1.0
           envelope t
            | not on = r

@@ -3,10 +3,6 @@ module Sound.Notes where
 a4 :: Int
 a4 = 440
 
-nfreq :: Int -> Double
-nfreq x = fromIntegral a4 * ((2 ** (1 / 12)) ** fromIntegral x)
-
-
 -- Notes n' crap
 rt :: Int
 rt = 999

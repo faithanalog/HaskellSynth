@@ -1,33 +1,69 @@
 module Sound.Source where
 import Data.Monoid
+import Data.List
+import System.Random
 
 -- A source takes a time 't' and returns the amplitude of the source
 -- at that time. 't' is a time in seconds, representing the current
 -- time where 0.0 is the start of the audio data
-newtype Source = Source { sample :: Double -> Double }
+newtype Source = Source { sample :: [Double] -> [Double] }
 
 instance Monoid (Source) where
-    mempty = Source (const 0.0)
-    mappend (Source f) (Source g) = Source (\t -> f t + g t)
-    mconcat srcs = Source (\t -> foldr (\(Source f) x -> f t + x) 0.0 srcs)
+    mempty = Source (const (repeat 0.0))
+    mappend (Source f) (Source g) = Source (\ts -> zipWith (+) (f ts) (g ts))
+    mconcat srcs = Source (\ts -> map sum . transpose . map (`sample` ts) $ srcs)
 
+type Oscillator = (Double -> Source)
 
-type Synth = (Double -> Source)
+randomNoise :: StdGen -> Source
+randomNoise rnd = Source (\_ -> randomRs (-1.0,1.0) rnd)
 
-sineSynth :: Double -> Source
-sineSynth = Source . sineWave
+source :: Double -> Source
+source = Source . const . repeat
 
-sawSynth :: Double -> Source
-sawSynth = Source . sawWave
+oscFor :: (Double -> Double -> Double) -> Oscillator
+oscFor f = Source . map . f
 
-triangleSynth :: Double -> Source
-triangleSynth = Source . triangleWave
+sourceFor :: (Double -> Double) -> Source
+sourceFor f = Source (map f)
 
-squareSynth :: Double -> Source
-squareSynth = Source . squareWave
+sineOsc :: Oscillator
+sineOsc = oscFor sineWave
+
+cosineOsc :: Oscillator
+cosineOsc = oscFor cosineWave
+
+sawOsc :: Oscillator
+sawOsc = oscFor sawWave
+
+triangleOsc :: Oscillator
+triangleOsc = oscFor triangleWave
+
+squareOsc :: Oscillator
+squareOsc = oscFor squareWave
+
+withHarmonics :: [Double] -> Oscillator -> Oscillator
+withHarmonics harmonics o hz = mconcat . map (o . (*hz)) $ harmonics
+
+mult :: Source -> Source -> Source
+mult (Source f) (Source g) = Source (\t -> zipWith (*) (f t) (g t))
+
+quantizeOsc :: Double -> Oscillator -> Oscillator
+quantizeOsc step o hz = quantize step (o hz)
+
+quantize :: Double -> Source -> Source
+quantize step (Source src) = Source $ map impl . src
+    where impl t = fromIntegral (floor (t * fact) :: Int) * step
+          fact = 1 / step
+
+range0to1 :: Source -> Source
+range0to1 (Source src) = Source $ map (\x -> x * 0.5 + 0.5) . src
 
 sineWave :: Double -> Double -> Double
 sineWave freq t = sin (freq * t * 2 * pi)
+
+cosineWave :: Double -> Double -> Double
+cosineWave freq t = cos (freq * t * 2 * pi)
 
 sawWave :: Double -> Double -> Double
 sawWave freq t = saw (freq * t)
@@ -37,7 +73,5 @@ triangleWave :: Double -> Double -> Double
 triangleWave freq t = 2 * abs (sawWave freq t) - 1
 
 squareWave :: Double -> Double -> Double
-squareWave freq t
-  | s < 0 = -1
-  | otherwise = 1
- where s = sineWave freq t
+squareWave freq t = 1 - 2 * fromIntegral (2 * floor ft - floor (2 * ft) + 1 :: Int)
+    where ft = freq * t
